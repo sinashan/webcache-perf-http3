@@ -197,10 +197,23 @@ async def discover_website_resources(url, domain_dir, timeout=30):
                         # Identify CDN provider
                         resource["cdn"] = identify_cdn(headers)
                         
+                        # Identify CDN provider
+                        resource["cdn"] = identify_cdn(headers)
+                        
                         # Check for HTTP/3 support
                         alt_svc = headers.get("alt-svc", "")
                         if "h3" in alt_svc:
                             resource["supports_http3"] = True
+                            
+                        # Add caching information
+                        resource["cache_control"] = headers.get("cache-control", "")
+                        resource["etag"] = headers.get("etag", "")
+                        resource["last_modified"] = headers.get("last-modified", "")
+                        resource["expires"] = headers.get("expires", "")
+                        resource["age"] = headers.get("age", "")
+                        
+                        # Add Server header which often indicates software/infrastructure
+                        resource["server"] = headers.get("server", "")
                             
                         # Add caching information
                         resource["cache_control"] = headers.get("cache-control", "")
@@ -345,6 +358,49 @@ async def process_single_website(url, timeout=45):
                     print(f"  Examples: {items[0]['url']}")
                     if len(items) > 1:
                         print(f"           {items[1]['url']}")
+
+    # Update the print section in process_single_website()
+
+    # Add after the resource breakdown section
+    print("\nCDN distribution:")
+    cdn_counts = {}
+    for category, items in resources.items():
+        if category != "metadata":
+            for item in items:
+                cdn = item.get("cdn", "Unknown")
+                if cdn not in cdn_counts:
+                    cdn_counts[cdn] = 0
+                cdn_counts[cdn] += 1
+
+    for cdn, count in sorted(cdn_counts.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {cdn}: {count} resources")
+
+    # You can also show HTTP/3-capable CDNs
+    print("\nHTTP/3 support by CDN:")
+    h3_counts = {}
+    for category, items in resources.items():
+        if category != "metadata":
+            for item in items:
+                if item.get("supports_http3", False):
+                    cdn = item.get("cdn", "Unknown")
+                    if cdn not in h3_counts:
+                        h3_counts[cdn] = 0
+                    h3_counts[cdn] += 1
+
+    for cdn, count in sorted(h3_counts.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {cdn}: {count} HTTP/3-capable resources")
+
+    # Add after the resource breakdown section in process_single_website()
+    print("\nCDN distribution:")
+    cdn_counts = {}
+    for category, items in resources.items():
+        if category != "metadata":
+            for item in items:
+                cdn = item.get("cdn", "Unknown")
+                cdn_counts[cdn] = cdn_counts.get(cdn, 0) + 1
+
+    for cdn, count in sorted(cdn_counts.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {cdn}: {count} resources")
     
     # Save to file
     with open(output_path, "w") as f:
@@ -397,7 +453,7 @@ async def main():
     parser.add_argument("--timeout", "-t", type=int, default=45, help="Navigation timeout in seconds")
     parser.add_argument("--limit", "-l", type=int, help="Limit batch processing to N sites")
     args = parser.parse_args()
-    
+
     if args.batch:
         websites = HTTP3_WEBSITES
         if args.limit and args.limit > 0 and args.limit < len(websites):
