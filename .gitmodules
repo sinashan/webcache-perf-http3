@@ -1,0 +1,3 @@
+[submodule "http3_detector"]
+	path = http3_detector
+	url = git@github.com:sinashan/http3_detector.git
