@@ -51,6 +51,55 @@ HTTP3_WEBSITES = [
     "https://www.microsoft.com"
 ]
 
+# Add this function after extract_domain_name()
+
+def identify_cdn(headers):
+    """Identify CDN provider from response headers"""
+    cdn_headers = {
+        "Cloudflare": ["cf-ray", "server: cloudflare"],
+        "Fastly": ["fastly-debug-digest", "x-served-by", "x-fastly"],
+        "Akamai": ["x-akamai-transformed", "server: akamai", "x-akamai-request-id"],
+        "Cloudfront": ["x-amz-cf-id", "x-amz-cf-pop"],
+        "Google": ["x-goog-", "server: gws", "via: gvs"],
+        "Verizon/Edgecast": ["server: edgecastcdn", "x-ec-"],
+        "Limelight": ["x-limelight-", "server: llnw"],
+        "StackPath/MaxCDN": ["x-hw", "server: netdna"],
+        "KeyCDN": ["x-cdn:", "server: keycdn"]
+    }
+    
+    # Convert all header names to lowercase for case-insensitive matching
+    lowercase_headers = {k.lower(): v for k, v in headers.items()}
+    
+    # Check for CDN-specific headers
+    for cdn, header_patterns in cdn_headers.items():
+        for pattern in header_patterns:
+            pattern_parts = pattern.lower().split(': ')
+            header_name = pattern_parts[0]
+            header_value = pattern_parts[1] if len(pattern_parts) > 1 else None
+            
+            # Check if header exists
+            if header_name in lowercase_headers:
+                # If we need to match a specific value
+                if header_value:
+                    if header_value in lowercase_headers[header_name].lower():
+                        return cdn
+                else:
+                    return cdn
+    
+    # Check for common CDN CNAME patterns in headers
+    for header in lowercase_headers.values():
+        if isinstance(header, str):
+            if ".cloudfront.net" in header:
+                return "Cloudfront"
+            elif ".akamaiedge.net" in header:
+                return "Akamai"
+            elif ".fastly.net" in header:
+                return "Fastly"
+            elif ".cloudflare.net" in header:
+                return "Cloudflare"
+    
+    return "Unknown"
+
 # Extract clean domain name from URL
 def extract_domain_name(url):
     # Parse URL to get netloc (domain)
@@ -116,6 +165,8 @@ async def discover_website_resources(url, domain_dir, timeout=30):
             })
             
         # Track response sizes
+        # Update the on_response function
+
         async def on_response(response):
             for resource in resources:
                 if resource["url"] == response.request.url:
@@ -127,10 +178,23 @@ async def discover_website_resources(url, domain_dir, timeout=30):
                         resource["content_type"] = headers.get("content-type", "")
                         resource["cache_control"] = headers.get("cache-control", "")
                         
+                        # Identify CDN provider
+                        resource["cdn"] = identify_cdn(headers)
+                        
                         # Check for HTTP/3 support
                         alt_svc = headers.get("alt-svc", "")
                         if "h3" in alt_svc:
                             resource["supports_http3"] = True
+                            
+                        # Add caching information
+                        resource["cache_control"] = headers.get("cache-control", "")
+                        resource["etag"] = headers.get("etag", "")
+                        resource["last_modified"] = headers.get("last-modified", "")
+                        resource["expires"] = headers.get("expires", "")
+                        resource["age"] = headers.get("age", "")
+                        
+                        # Add Server header which often indicates software/infrastructure
+                        resource["server"] = headers.get("server", "")
                     except:
                         pass
                     break
@@ -265,6 +329,49 @@ async def process_single_website(url, timeout=45):
                     print(f"  Examples: {items[0]['url']}")
                     if len(items) > 1:
                         print(f"           {items[1]['url']}")
+
+    # Update the print section in process_single_website()
+
+    # Add after the resource breakdown section
+    print("\nCDN distribution:")
+    cdn_counts = {}
+    for category, items in resources.items():
+        if category != "metadata":
+            for item in items:
+                cdn = item.get("cdn", "Unknown")
+                if cdn not in cdn_counts:
+                    cdn_counts[cdn] = 0
+                cdn_counts[cdn] += 1
+
+    for cdn, count in sorted(cdn_counts.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {cdn}: {count} resources")
+
+    # You can also show HTTP/3-capable CDNs
+    print("\nHTTP/3 support by CDN:")
+    h3_counts = {}
+    for category, items in resources.items():
+        if category != "metadata":
+            for item in items:
+                if item.get("supports_http3", False):
+                    cdn = item.get("cdn", "Unknown")
+                    if cdn not in h3_counts:
+                        h3_counts[cdn] = 0
+                    h3_counts[cdn] += 1
+
+    for cdn, count in sorted(h3_counts.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {cdn}: {count} HTTP/3-capable resources")
+
+    # Add after the resource breakdown section in process_single_website()
+    print("\nCDN distribution:")
+    cdn_counts = {}
+    for category, items in resources.items():
+        if category != "metadata":
+            for item in items:
+                cdn = item.get("cdn", "Unknown")
+                cdn_counts[cdn] = cdn_counts.get(cdn, 0) + 1
+
+    for cdn, count in sorted(cdn_counts.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {cdn}: {count} resources")
     
     # Save to file
     with open(output_path, "w") as f:
@@ -317,7 +424,7 @@ async def main():
     parser.add_argument("--timeout", "-t", type=int, default=45, help="Navigation timeout in seconds")
     parser.add_argument("--limit", "-l", type=int, help="Limit batch processing to N sites")
     args = parser.parse_args()
-    
+
     if args.batch:
         websites = HTTP3_WEBSITES
         if args.limit and args.limit > 0 and args.limit < len(websites):

@@ -6,7 +6,7 @@ import sys
 import os
 import numpy as np
 import matplotlib
-sys.path.append('/home/ubuntu/measure')
+sys.path.append('/home/ubuntu/webcache-perf-http3')
 from common import (golden_ratio, figwidth, color_pallete, kfmt,
                     legendHandleTestPad, legendColumnSpacing, 
                     legendHandleLength, legendLabelSpacing, 
@@ -320,6 +320,35 @@ def analyze_results(csv_file):
                 conn_base_name = os.path.basename(csv_file).replace('.csv', '_connection_types')
                 conn_pdf_path = os.path.join(results_dir, f"{conn_base_name}.pdf")
                 plt.savefig(conn_pdf_path, format='pdf', bbox_inches='tight')
+            
+        # Add to analyze_results function
+        if 'cdn' in df.columns:
+            # Performance by CDN provider
+            cdn_stats = df.groupby(['protocol', 'cdn'])['load_time_ms'].agg(
+                ['mean', 'std', 'count']
+            ).reset_index()
+            print("\nPerformance by CDN provider:")
+            print(cdn_stats)
+            
+            # Create plot comparing HTTP/3 benefit by CDN
+            plt.figure()
+            cdn_pivot = cdn_stats.pivot_table(
+                index='cdn', 
+                columns='protocol', 
+                values='mean'
+            ).reset_index()
+            cdn_pivot['improvement_pct'] = ((cdn_pivot['h2'] - cdn_pivot['h3']) / cdn_pivot['h2'] * 100)
+            
+            # Only include CDNs with enough samples
+            valid_cdns = cdn_pivot[cdn_pivot['h3_count'] > 5]
+            sns.barplot(x='cdn', y='improvement_pct', data=valid_cdns, palette=color_pallete)
+            plt.title('HTTP/3 Performance Benefit by CDN')
+            plt.xlabel('CDN Provider')
+            plt.ylabel('Improvement (%)')
+            plt.xticks(rotation=45)
+            plt.axhline(y=0, color='gray', linestyle='--')
+            plt.tight_layout()
+            plt.savefig(f"{csv_file.replace('.csv', '_cdn_comparison.pdf')}", format='pdf')
             
         # 4. Compare Browser Cache with Connection Resumption
         if 'from_disk_cache' in df.columns:
