@@ -111,7 +111,7 @@ cd measure
 pip install playwright pandas matplotlib seaborn numpy
 
 # Install browser engines
-playwright install chromium
+python3 playwright install chromium
 
 # Generate SSL certificates (required for HTTPS)
 mkdir -p nginx/ssl
