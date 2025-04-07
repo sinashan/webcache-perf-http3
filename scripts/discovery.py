@@ -4,20 +4,10 @@ from playwright.async_api import async_playwright
 import argparse
 import json
 import os
-import sys
+import http3_detector
 import time
 from urllib.parse import urlparse
 import re
-
-script_dir = os.path.dirname(os.path.abspath(__file__))
-
-# Add the parent directory of scripts to the Python path
-project_root = os.path.abspath(os.path.join(script_dir, '..'))
-sys.path.append(project_root)
-
-# Now import the http3_detector module
-from http3_detector.http3_detector import detect_http3_support
-
 
 # Create base output directory
 output_dir = "outputs"
@@ -237,7 +227,7 @@ async def process_single_website(url, timeout=45):
     print(f"Created directory: {domain_dir}")
     
     # Check HTTP/3 support using the detector
-    if (detect_http3_support(url) == 0):
+    if (http3_detector.detect_http3_support(url) == 0):
         print("HTTP/3 is not supported on this URL. Skipping...")
         return False
     
