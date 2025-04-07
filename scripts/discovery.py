@@ -23,33 +23,100 @@ HTTP3_WEBSITES = [
     # Google properties
     "https://www.google.com",
     "https://www.youtube.com",
-    "https://fonts.google.com",
+    "https://www.google.com/maps",
+    "https://www.google.com/drive",
+    "https://www.google.com/docs",
+    "https://www.google.com/sheets",
     
     # Facebook family
     "https://www.facebook.com",
     "https://www.instagram.com",
     "https://www.whatsapp.com",
     
-    # CDN providers
-    "https://www.fastly.com",
-    "https://www.akamai.com",
     
     # Test sites
     "https://quic.rocks",
     "https://http3-test.com",
+
     
     # E-commerce
     "https://www.shopify.com",
     "https://www.ebay.com",
+    "https://www.amazon.com",
+    "https://www.walmart.com",
+    "https://www.target.com",
+    "https://www.alibaba.com",
     
     # Media
     "https://www.nytimes.com",
     "https://www.theverge.com",
+    "https://www.bbc.com",
+    "https://www.cnn.com",
+    "https://www.netflix.com",
+    "https://www.spotify.com",
+    "https://www.twitch.tv",
+    "https://www.soundcloud.com",
+    "https://www.reddit.com",
     
     # Technology
     "https://www.mozilla.org",
-    "https://www.microsoft.com"
+    "https://www.microsoft.com",
+    "https://www.apple.com",
+    "https://www.github.com",
+    "https://www.stackoverflow.com",
+    "https://www.slack.com",
+    "https://www.dropbox.com",
+    "https://www.zoom.us",
 ]
+
+# Add this function after extract_domain_name()
+
+def identify_cdn(headers):
+    """Identify CDN provider from response headers"""
+    cdn_headers = {
+        "Cloudflare": ["cf-ray", "server: cloudflare"],
+        "Fastly": ["fastly-debug-digest", "x-served-by", "x-fastly"],
+        "Akamai": ["x-akamai-transformed", "server: akamai", "x-akamai-request-id"],
+        "Cloudfront": ["x-amz-cf-id", "x-amz-cf-pop"],
+        "Google": ["x-goog-", "server: gws", "via: gvs"],
+        "Verizon/Edgecast": ["server: edgecastcdn", "x-ec-"],
+        "Limelight": ["x-limelight-", "server: llnw"],
+        "StackPath/MaxCDN": ["x-hw", "server: netdna"],
+        "KeyCDN": ["x-cdn:", "server: keycdn"]
+    }
+    
+    # Convert all header names to lowercase for case-insensitive matching
+    lowercase_headers = {k.lower(): v for k, v in headers.items()}
+    
+    # Check for CDN-specific headers
+    for cdn, header_patterns in cdn_headers.items():
+        for pattern in header_patterns:
+            pattern_parts = pattern.lower().split(': ')
+            header_name = pattern_parts[0]
+            header_value = pattern_parts[1] if len(pattern_parts) > 1 else None
+            
+            # Check if header exists
+            if header_name in lowercase_headers:
+                # If we need to match a specific value
+                if header_value:
+                    if header_value in lowercase_headers[header_name].lower():
+                        return cdn
+                else:
+                    return cdn
+    
+    # Check for common CDN CNAME patterns in headers
+    for header in lowercase_headers.values():
+        if isinstance(header, str):
+            if ".cloudfront.net" in header:
+                return "Cloudfront"
+            elif ".akamaiedge.net" in header:
+                return "Akamai"
+            elif ".fastly.net" in header:
+                return "Fastly"
+            elif ".cloudflare.net" in header:
+                return "Cloudflare"
+    
+    return "Unknown"
 
 # Extract clean domain name from URL
 def extract_domain_name(url):
@@ -115,7 +182,7 @@ async def discover_website_resources(url, domain_dir, timeout=30):
                 "size": 0  # Will be updated when response is received
             })
             
-        # Track response sizes
+        # Track response sizes        
         async def on_response(response):
             for resource in resources:
                 if resource["url"] == response.request.url:
@@ -127,10 +194,23 @@ async def discover_website_resources(url, domain_dir, timeout=30):
                         resource["content_type"] = headers.get("content-type", "")
                         resource["cache_control"] = headers.get("cache-control", "")
                         
+                        # Identify CDN provider
+                        resource["cdn"] = identify_cdn(headers)
+                        
                         # Check for HTTP/3 support
                         alt_svc = headers.get("alt-svc", "")
                         if "h3" in alt_svc:
                             resource["supports_http3"] = True
+                            
+                        # Add caching information
+                        resource["cache_control"] = headers.get("cache-control", "")
+                        resource["etag"] = headers.get("etag", "")
+                        resource["last_modified"] = headers.get("last-modified", "")
+                        resource["expires"] = headers.get("expires", "")
+                        resource["age"] = headers.get("age", "")
+                        
+                        # Add Server header which often indicates software/infrastructure
+                        resource["server"] = headers.get("server", "")
                     except:
                         pass
                     break
