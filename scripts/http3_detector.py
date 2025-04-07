@@ -49,10 +49,10 @@ def detect_http3_support(url):
     dns_https_supported = check_http3_via_dns_https_record(hostname)
 
     # Summary
-    if alt_svc_supported and dns_https_supported:
+    if alt_svc_supported:
         print(f"\n✅ HTTP/3 is supported on {url}!")
         return 1
-    elif alt_svc_supported != dns_https_supported:
+    elif dns_https_supported:
         print(f"\n✅ HTTP/3 is likely supported on {url}!")
         return 1
     else:

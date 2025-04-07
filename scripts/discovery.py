@@ -33,40 +33,24 @@ HTTP3_WEBSITES = [
     "https://www.instagram.com",
     "https://www.whatsapp.com",
     
-    
-    # Test sites
-    "https://quic.rocks",
-    "https://http3-test.com",
 
-    
     # E-commerce
     "https://www.shopify.com",
-    "https://www.ebay.com",
     "https://www.amazon.com",
-    "https://www.walmart.com",
-    "https://www.target.com",
     "https://www.alibaba.com",
     
     # Media
-    "https://www.nytimes.com",
     "https://www.theverge.com",
     "https://www.bbc.com",
     "https://www.cnn.com",
-    "https://www.netflix.com",
-    "https://www.spotify.com",
-    "https://www.twitch.tv",
-    "https://www.soundcloud.com",
-    "https://www.reddit.com",
+    "https://www.medium.com",
+    "https://www.blogspot.com",
     
     # Technology
-    "https://www.mozilla.org",
-    "https://www.microsoft.com",
-    "https://www.apple.com",
-    "https://www.github.com",
-    "https://www.stackoverflow.com",
-    "https://www.slack.com",
-    "https://www.dropbox.com",
     "https://www.zoom.us",
+    "https://www.openai.com",
+    "https://www.claude.ai",
+    "https://www.hostinger.com",
 ]
 
 # Add this function after extract_domain_name()
