@@ -6,7 +6,7 @@ import sys
 import os
 import numpy as np
 import matplotlib
-sys.path.append('/home/ubuntu/measure')
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common import (golden_ratio, figwidth, color_pallete, kfmt,
                     legendHandleTestPad, legendColumnSpacing, 
                     legendHandleLength, legendLabelSpacing, 
