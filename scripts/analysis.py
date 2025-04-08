@@ -897,62 +897,52 @@ def analyze_validation_and_0rtt(csv_file):
                 plt.tight_layout()
                 plt.savefig(f"{csv_file.replace('.csv', '_conditional_asset_type.pdf')}", format='pdf')
 
-def analyze_network_conditions(base_directory=results_dir, date_pattern=None):
+def analyze_network_conditions(base_directory=results_dir):
     """Analyze HTTP/3 vs HTTP/2 performance across different network conditions"""
-    # Find all result files with the same date pattern but different network conditions
-    if date_pattern is None:
-        # Look for the most recent date pattern
-        csv_files = glob.glob(os.path.join(base_directory, "real_web_tests_*.csv"))
-        if not csv_files:
-            print("No result files found in the results directory.")
-            return
-            
-        # Extract date patterns
-        date_patterns = set()
-        for file in csv_files:
-            match = re.search(r'real_web_tests__(\d+_\d+)_', file)
-            if match:
-                date_patterns.add(match.group(1))
-        
-        if not date_patterns:
-            print("No valid date patterns found in result files.")
-            return
-            
-        # Use the most recent date pattern
-        date_pattern = sorted(date_patterns)[-1]
-        print(f"Using most recent test date: {date_pattern}")
-    
-    # Find all files matching the date pattern
-    network_files = glob.glob(os.path.join(base_directory, f"cache_perf_results_{date_pattern}_*.csv"))
-    
-    if len(network_files) <= 1:
-        print(f"Not enough network condition files found for date {date_pattern}.")
+    # Find all cache performance result files
+    csv_files = glob.glob(os.path.join(base_directory, "cache_perf_results_*.csv"))
+    if not csv_files:
+        print("No performance result files found in the results directory.")
         return
-        
-    print(f"Found {len(network_files)} network condition files for analysis.")
     
-    # Load all files into dataframes
+    print(f"Found {len(csv_files)} total performance files.")
+    
+    # Extract network condition name from each file
     network_data = {}
-    for file_path in network_files:
+    network_order = []  # To keep track of order for plotting
+    
+    for file_path in csv_files:
         # Extract network condition name from filename
-        match = re.search(r'_(\w+(?:\s\w+)*)\.csv$', file_path)
+        match = re.search(r'cache_perf_results_.*?_(.*?)\.csv$', file_path)
         if match:
             network_name = match.group(1)
             try:
                 df = pd.read_csv(file_path)
-                network_data[network_name] = df
-                print(f"Loaded {network_name} data: {len(df)} rows")
+                if network_name not in network_data:
+                    network_data[network_name] = df
+                    network_order.append(network_name)
+                    print(f"Loaded {network_name} data: {len(df)} rows from {os.path.basename(file_path)}")
+                else:
+                    print(f"Note: Multiple files for {network_name} condition found, using first one.")
             except Exception as e:
                 print(f"Error loading {file_path}: {e}")
     
     if not network_data:
-        print("No valid data files could be loaded.")
+        print("No valid network condition files could be loaded.")
         return
+    
+    # Standardize network order if we have standard names
+    standard_order = ['fast', 'typical', 'slow', 'very slow']
+    if all(net in standard_order for net in network_data.keys()):
+        network_order = [net for net in standard_order if net in network_data]
+        print(f"Using standard network ordering: {network_order}")
+    else:
+        print(f"Using discovered network ordering: {network_order}")
     
     # Combine dataframes with network condition column
     combined_data = []
-    for network, df in network_data.items():
-        df_copy = df.copy()
+    for network in network_order:
+        df_copy = network_data[network].copy()
         df_copy['network_condition'] = network
         combined_data.append(df_copy)
     
@@ -963,6 +953,11 @@ def analyze_network_conditions(base_directory=results_dir, date_pattern=None):
         if col in combined_df.columns and combined_df[col].dtype == 'object':
             combined_df[col] = combined_df[col].map({'true': True, 'false': False})
     
+    print(f"Combined dataset has {len(combined_df)} rows across {len(network_data)} network conditions.")
+    
+    # Generate timestamp for output files
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
     # Create the comparison visualizations
     
     # 1. Protocol comparison across network conditions
@@ -971,8 +966,7 @@ def analyze_network_conditions(base_directory=results_dir, date_pattern=None):
     # Calculate mean load times for each protocol and network condition
     agg_data = combined_df.groupby(['network_condition', 'protocol'])['load_time_ms'].mean().reset_index()
     
-    # Order network conditions from fast to very slow
-    network_order = ['fast', 'typical', 'slow', 'very slow']
+    # Order network conditions
     agg_data['network_condition'] = pd.Categorical(agg_data['network_condition'], 
                                                  categories=network_order, 
                                                  ordered=True)
@@ -992,7 +986,7 @@ def analyze_network_conditions(base_directory=results_dir, date_pattern=None):
     plt.grid(axis='y', linestyle='--', alpha=0.3)
     plt.tight_layout()
     
-    network_comp_file = os.path.join(base_directory, f"network_comparison_{date_pattern}.pdf")
+    network_comp_file = os.path.join(base_directory, f"network_comparison_{timestamp}.pdf")
     plt.savefig(network_comp_file, format='pdf')
     print(f"Saved network comparison chart to {network_comp_file}")
     
@@ -1042,7 +1036,7 @@ def analyze_network_conditions(base_directory=results_dir, date_pattern=None):
         plt.grid(axis='y', linestyle='--', alpha=0.3)
         plt.tight_layout()
         
-        improvement_file = os.path.join(base_directory, f"http3_improvement_by_network_{date_pattern}.pdf")
+        improvement_file = os.path.join(base_directory, f"http3_improvement_by_network_{timestamp}.pdf")
         plt.savefig(improvement_file, format='pdf')
         print(f"Saved HTTP/3 improvement chart to {improvement_file}")
     
@@ -1067,7 +1061,7 @@ def analyze_network_conditions(base_directory=results_dir, date_pattern=None):
     plt.grid(axis='y', linestyle='--', alpha=0.3)
     plt.tight_layout()
     
-    conn_file = os.path.join(base_directory, f"connection_time_by_network_{date_pattern}.pdf")
+    conn_file = os.path.join(base_directory, f"connection_time_by_network_{timestamp}.pdf")
     plt.savefig(conn_file, format='pdf')
     print(f"Saved connection time comparison to {conn_file}")
     
@@ -1107,10 +1101,11 @@ def analyze_network_conditions(base_directory=results_dir, date_pattern=None):
             plt.grid(axis='y', linestyle='--', alpha=0.3)
             plt.tight_layout()
             
-            rtt_file = os.path.join(base_directory, f"zero_rtt_success_by_network_{date_pattern}.pdf")
+            rtt_file = os.path.join(base_directory, f"zero_rtt_success_by_network_{timestamp}.pdf")
             plt.savefig(rtt_file, format='pdf')
             print(f"Saved 0-RTT success rate chart to {rtt_file}")
     
+    print("\nNetwork condition analysis complete!")
     return combined_df
 
 if __name__ == "__main__":
@@ -1118,12 +1113,11 @@ if __name__ == "__main__":
     parser.add_argument("file", nargs="?", help="Input CSV results file")
     parser.add_argument("--network-analysis", "-n", action="store_true", 
                       help="Perform analysis across network conditions")
-    parser.add_argument("--date", "-d", help="Date pattern to use (format: YYYYMMDD_HHMMSS)")
     
     args = parser.parse_args()
     
     if args.network_analysis:
-        analyze_network_conditions(date_pattern=args.date)
+        analyze_network_conditions()  # No date parameter needed
     elif args.file:
         analyze_results(args.file)
         analyze_cdn_requests(args.file)
