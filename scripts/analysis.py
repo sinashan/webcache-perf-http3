@@ -15,6 +15,7 @@ from common import (golden_ratio, figwidth, color_pallete, kfmt,
                     legendHandleTestPad, legendColumnSpacing, 
                     legendHandleLength, legendLabelSpacing, 
                     legendBorderpadSpacing)
+matplotlib.rcParams['text.usetex'] = False
 
 results_dir = "results/"
 os.makedirs(results_dir, exist_ok=True)
