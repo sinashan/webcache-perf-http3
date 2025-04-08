@@ -6,7 +6,7 @@ import sys
 import os
 import numpy as np
 import matplotlib
-sys.path.append('/home/ubuntu/webcache-perf-http3')
+sys.path.append('/home/ubuntu/measure')
 from common import (golden_ratio, figwidth, color_pallete, kfmt,
                     legendHandleTestPad, legendColumnSpacing, 
                     legendHandleLength, legendLabelSpacing, 

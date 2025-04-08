@@ -48,7 +48,8 @@ BASE_URLS = {
 NETWORK_CONDITIONS = [
     {"name": "fast", "latency": 5, "packet_loss": 0.0},  # Fast connection
     {"name": "typical", "latency": 25, "packet_loss": 0.01},  # Typical connection
-    {"name": "slow", "latency": 100, "packet_loss": 0.05}  # Challenging connection
+    {"name": "slow", "latency": 100, "packet_loss": 0.05},  # Challenging connection
+    {"name": "very slow", "latency": 300, "packet_loss": 0.1}  # Very Challenging connection
 ]
 
 # Choose one network condition for this test run
@@ -474,7 +475,7 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Test HTTP/2 vs HTTP/3 performance with different cache states")
-    parser.add_argument("--network", choices=["fast", "typical", "slow"], default="typical",
+    parser.add_argument("--network", choices=["fast", "typical", "slow", "very slow"], default="typical",
                         help="Network condition to simulate (default: typical)")
     parser.add_argument("--iterations", type=int, default=10,
                         help="Number of test iterations per configuration (default: 10)")
