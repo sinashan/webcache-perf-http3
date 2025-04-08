@@ -419,9 +419,141 @@ def analyze_results(csv_file):
     
     print(f"Analysis complete. Charts saved to {results_dir} in PDF format")
 
+def analyze_cdn_requests(csv_file):
+    """Analyze requests served by CDNs vs origin servers"""
+    df = pd.read_csv(csv_file)
+    
+    # Check if CDN information is available
+    if 'cdn' not in df.columns:
+        print("No CDN information found in the dataset.")
+        return
+    
+    # Mark CDN vs origin requests (treat "Unknown" as non-CDN)
+    df['is_cdn'] = df['cdn'].apply(lambda x: False if x == "Unknown" else True)
+    
+    # 1. Generate basic statistics
+    cdn_stats = df.groupby(['protocol', 'is_cdn']).agg(
+        count=('url', 'count'),
+        avg_load_time=('load_time_ms', 'mean'),
+        avg_connection_time=('connection_time_ms', 'mean')
+    ).reset_index()
+    
+    # Calculate percentage of requests served by CDNs
+    total_requests = len(df)
+    cdn_requests = len(df[df['is_cdn'] == True])
+    cdn_percent = cdn_requests / total_requests * 100
+    
+    print("\n=== CDN Response Analysis ===")
+    print(f"Total requests: {total_requests}")
+    print(f"Served by CDNs: {cdn_requests} ({cdn_percent:.1f}%)")
+    print(f"Served by origin: {total_requests - cdn_requests} ({100 - cdn_percent:.1f}%)")
+    
+    # 2. Generate CDN distribution pie chart
+    plt.figure(figsize=(figwidth, figwidth))
+    
+    # Count requests by CDN
+    cdn_counts = df['cdn'].value_counts()
+    # Filter out small counts for readability
+    threshold = total_requests * 0.02  # 2% threshold
+    other_counts = cdn_counts[cdn_counts < threshold].sum()
+    filtered_counts = cdn_counts[cdn_counts >= threshold]
+    if other_counts > 0:
+        filtered_counts['Other'] = other_counts
+    
+    # Create pie chart
+    plt.pie(filtered_counts, labels=filtered_counts.index, autopct='%1.1f%%',
+           colors=color_pallete[:len(filtered_counts)], startangle=90)
+    plt.axis('equal')
+    plt.title('Distribution of Requests by CDN Provider')
+    
+    # Save chart
+    plt.tight_layout()
+    cdn_dist_path = os.path.join(results_dir, f"{os.path.basename(csv_file).replace('.csv', '_cdn_distribution.pdf')}")
+    plt.savefig(cdn_dist_path, format='pdf')
+    
+    # 3. Compare HTTP/2 vs HTTP/3 for CDN responses
+    plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
+    
+    # Prepare data
+    cdn_protocol = df[df['is_cdn'] == True].groupby(['cdn', 'protocol'])['load_time_ms'].mean().reset_index()
+    cdn_protocol_pivot = cdn_protocol.pivot_table(index='cdn', columns='protocol', values='load_time_ms').reset_index()
+    
+    # Calculate improvement percentage
+    if 'h2' in cdn_protocol_pivot.columns and 'h3' in cdn_protocol_pivot.columns:
+        cdn_protocol_pivot['improvement'] = (cdn_protocol_pivot['h2'] - cdn_protocol_pivot['h3']) / cdn_protocol_pivot['h2'] * 100
+        
+        # Drop rows with missing values
+        cdn_protocol_pivot = cdn_protocol_pivot.dropna(subset=['improvement'])
+        
+        if len(cdn_protocol_pivot) > 0:
+            # Create bar chart
+            ax = sns.barplot(x='cdn', y='improvement', data=cdn_protocol_pivot, palette=color_pallete)
+            
+            plt.axhline(y=0, color='gray', linestyle='--', alpha=0.7)
+            plt.title('HTTP/3 Performance Improvement over HTTP/2 by CDN')
+            plt.xlabel('CDN Provider')
+            plt.ylabel('Performance Improvement (%)')
+            plt.xticks(rotation=45)
+            plt.grid(axis='y', linestyle='--', alpha=0.3)
+            
+            # Save chart
+            plt.tight_layout()
+            cdn_perf_path = os.path.join(results_dir, f"{os.path.basename(csv_file).replace('.csv', '_cdn_http3_improvement.pdf')}")
+            plt.savefig(cdn_perf_path, format='pdf')
+    
+    # 4. Compare 0-RTT Success Rate by CDN (if data available)
+    if 'zero_rtt_used' in df.columns:
+        # Convert string boolean to actual boolean if needed
+        if df['zero_rtt_used'].dtype == 'object':
+            df['zero_rtt_used'] = df['zero_rtt_used'].map({'true': True, 'false': False})
+            
+        h3_cdn_data = df[(df['protocol'] == 'h3') & (df['is_cdn'] == True)]
+        
+        if len(h3_cdn_data) > 0:
+            # Group by CDN and calculate 0-RTT percentage
+            zero_rtt_by_cdn = h3_cdn_data.groupby('cdn')['zero_rtt_used'].agg(
+                ['count', 'sum']
+            ).reset_index()
+            
+            # Calculate percentage
+            zero_rtt_by_cdn['zero_rtt_pct'] = (zero_rtt_by_cdn['sum'] / zero_rtt_by_cdn['count']) * 100
+            
+            # Filter CDNs with enough data
+            min_requests = 5
+            zero_rtt_by_cdn = zero_rtt_by_cdn[zero_rtt_by_cdn['count'] >= min_requests]
+            
+            if len(zero_rtt_by_cdn) > 0:
+                plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
+                
+                # Sort by percentage
+                zero_rtt_by_cdn = zero_rtt_by_cdn.sort_values('zero_rtt_pct', ascending=False)
+                
+                # Create bar chart
+                ax = sns.barplot(x='cdn', y='zero_rtt_pct', data=zero_rtt_by_cdn, palette=color_pallete)
+                
+                plt.title('HTTP/3 0-RTT Success Rate by CDN')
+                plt.xlabel('CDN Provider')
+                plt.ylabel('0-RTT Success Rate (%)')
+                plt.xticks(rotation=45)
+                plt.grid(axis='y', linestyle='--', alpha=0.3)
+                
+                # Annotate with count
+                for i, row in enumerate(zero_rtt_by_cdn.itertuples()):
+                    ax.text(i, 5, f"n={row.count}", ha='center')
+                
+                # Save chart
+                plt.tight_layout()
+                cdn_0rtt_path = os.path.join(results_dir, f"{os.path.basename(csv_file).replace('.csv', '_cdn_0rtt_rate.pdf')}")
+                plt.savefig(cdn_0rtt_path, format='pdf')
+    
+    return cdn_stats
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python analyze_results.py <results_csv_file>")
         sys.exit(1)
     
     analyze_results(sys.argv[1])
+
+    analyze_cdn_requests(sys.argv[1])
