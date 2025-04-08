@@ -9,6 +9,7 @@ import argparse
 import glob
 import re 
 import matplotlib
+import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common import (golden_ratio, figwidth, color_pallete, kfmt,
                     legendHandleTestPad, legendColumnSpacing, 
