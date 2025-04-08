@@ -760,6 +760,139 @@ def analyze_cache_validation(csv_file):
             plt.tight_layout()
             plt.savefig(f"{csv_file.replace('.csv', '_cdn_validation_effectiveness.pdf')}", format='pdf')
 
+def analyze_validation_and_0rtt(csv_file):
+    """Analyze validation response times and 0-RTT usage for conditional requests"""
+    df = pd.read_csv(csv_file)
+    
+    print("\n=== Validation Response Time & 0-RTT Analysis ===")
+    
+    # Convert string boolean values to actual booleans if needed
+    for col in ['zero_rtt_used', 'from_disk_cache', 'tls_resumed']:
+        if col in df.columns and df[col].dtype == 'object':
+            df[col] = df[col].map({'true': True, 'false': False})
+    
+    # 1. Identify conditional requests (304 Not Modified responses)
+    df['is_conditional'] = df['status_code'] == 304
+    
+    # Also check for requests with If-None-Match or If-Modified-Since headers
+    if 'request_headers' in df.columns:
+        df['has_conditional_header'] = df['request_headers'].apply(
+            lambda h: isinstance(h, str) and ('if-none-match' in h.lower() or 'if-modified-since' in h.lower())
+        )
+        df['is_conditional'] = df['is_conditional'] | df['has_conditional_header']
+    
+    conditional_count = df['is_conditional'].sum()
+    total_warm = len(df[df['cache_state'] == 'warm'])
+    
+    print(f"Conditional requests detected: {conditional_count}")
+    if total_warm > 0:
+        print(f"Percentage of warm requests that were conditional: {conditional_count/total_warm*100:.1f}%")
+    
+    if conditional_count == 0:
+        print("No conditional requests found for analysis.")
+        return
+    
+    # 2. Compare response times for conditional vs non-conditional requests
+    conditional_df = df[df['is_conditional']]
+    non_conditional_df = df[~df['is_conditional'] & (df['cache_state'] == 'warm')]
+    
+    # Calculate statistics
+    cond_stats = conditional_df.groupby('protocol')['load_time_ms'].agg(['mean', 'median', 'count']).reset_index()
+    non_cond_stats = non_conditional_df.groupby('protocol')['load_time_ms'].agg(['mean', 'median', 'count']).reset_index()
+    
+    print("\nConditional Request Response Times (ms):")
+    for _, row in cond_stats.iterrows():
+        print(f"  {row['protocol'].upper()}: {row['mean']:.2f}ms mean, {row['median']:.2f}ms median (n={int(row['count'])})")
+    
+    print("\nNon-Conditional Request Response Times (ms):")
+    for _, row in non_cond_stats.iterrows():
+        print(f"  {row['protocol'].upper()}: {row['mean']:.2f}ms mean, {row['median']:.2f}ms median (n={int(row['count'])})")
+    
+    # 3. Analyze 0-RTT usage for conditional requests
+    if 'zero_rtt_used' in conditional_df.columns:
+        # How often 0-RTT was used for conditional requests with HTTP/3
+        h3_conditional = conditional_df[conditional_df['protocol'] == 'h3']
+        if len(h3_conditional) > 0:
+            zero_rtt_count = h3_conditional['zero_rtt_used'].sum()
+            zero_rtt_pct = zero_rtt_count / len(h3_conditional) * 100
+            
+            print(f"\n0-RTT Usage for Conditional HTTP/3 Requests:")
+            print(f"  Used 0-RTT: {zero_rtt_count}/{len(h3_conditional)} ({zero_rtt_pct:.1f}%)")
+            
+            # Compare response times for 0-RTT vs non-0-RTT conditional requests
+            if zero_rtt_count > 0:
+                zero_rtt_time = h3_conditional[h3_conditional['zero_rtt_used']]['load_time_ms'].mean()
+                non_zero_rtt_time = h3_conditional[~h3_conditional['zero_rtt_used']]['load_time_ms'].mean()
+                
+                print(f"  Avg response time with 0-RTT: {zero_rtt_time:.2f}ms")
+                print(f"  Avg response time without 0-RTT: {non_zero_rtt_time:.2f}ms")
+                print(f"  Time savings with 0-RTT: {non_zero_rtt_time - zero_rtt_time:.2f}ms ({(non_zero_rtt_time - zero_rtt_time)/non_zero_rtt_time*100:.1f}%)")
+                
+                # Plot comparison if we have enough samples
+                if zero_rtt_count >= 5 and len(h3_conditional) - zero_rtt_count >= 5:
+                    plt.figure(figsize=(figwidth, figwidth / golden_ratio))
+                    h3_conditional['0-RTT Used'] = h3_conditional['zero_rtt_used'].map({True: 'Yes', False: 'No'})
+                    
+                    sns.boxplot(x='0-RTT Used', y='load_time_ms', data=h3_conditional, palette=[color_pallete[0], color_pallete[2]])
+                    plt.title('HTTP/3 Conditional Request Response Time by 0-RTT Usage')
+                    plt.xlabel('0-RTT Used')
+                    plt.ylabel('Response Time (ms)')
+                    plt.grid(axis='y', linestyle='--', alpha=0.3)
+                    plt.tight_layout()
+                    plt.savefig(f"{csv_file.replace('.csv', '_conditional_0rtt_boxplot.pdf')}", format='pdf')
+                    
+                    # Also generate CDF plot for better distribution view
+                    plt.figure(figsize=(figwidth, figwidth / golden_ratio))
+                    
+                    for used_0rtt, group in h3_conditional.groupby('zero_rtt_used'):
+                        x = np.sort(group['load_time_ms'])
+                        y = np.arange(1, len(x) + 1) / len(x)
+                        label = "With 0-RTT" if used_0rtt else "Without 0-RTT"
+                        color = color_pallete[0] if used_0rtt else color_pallete[2]
+                        plt.plot(x, y, label=label, color=color)
+                    
+                    plt.title('CDF of HTTP/3 Conditional Request Response Times')
+                    plt.xlabel('Response Time (ms)')
+                    plt.ylabel('Cumulative Probability')
+                    plt.grid(True, alpha=0.3)
+                    plt.legend()
+                    plt.tight_layout()
+                    plt.savefig(f"{csv_file.replace('.csv', '_conditional_0rtt_cdf.pdf')}", format='pdf')
+    
+    # 4. Compare validation time by asset type
+    if len(conditional_df) >= 10:
+        if 'asset_type' in conditional_df.columns:
+            # Get validation times by asset type and protocol
+            validation_by_type = conditional_df.groupby(['asset_type', 'protocol'])['load_time_ms'].agg(
+                ['mean', 'count']
+            ).reset_index()
+            
+            # Only keep asset types with at least 3 samples
+            valid_validation_types = validation_by_type[validation_by_type['count'] >= 3]
+            
+            if len(valid_validation_types) > 0:
+                print("\nConditional Request Response Times by Asset Type:")
+                for _, row in valid_validation_types.iterrows():
+                    print(f"  {row['protocol'].upper()} {row['asset_type']}: {row['mean']:.2f}ms (n={int(row['count'])})")
+                
+                # Plot comparison
+                plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
+                pivot_data = valid_validation_types.pivot_table(
+                    index='asset_type', columns='protocol', values='mean'
+                ).reset_index()
+                
+                plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
+                pivot_data_long = valid_validation_types.rename(columns={'mean': 'load_time_ms'})
+                
+                ax = sns.barplot(x='asset_type', y='load_time_ms', hue='protocol', 
+                                data=pivot_data_long, palette=color_pallete[:2])
+                plt.title('Conditional Request Response Times by Asset Type')
+                plt.xlabel('Asset Type')
+                plt.ylabel('Response Time (ms)')
+                plt.xticks(rotation=30)
+                plt.grid(axis='y', linestyle='--', alpha=0.3)
+                plt.tight_layout()
+                plt.savefig(f"{csv_file.replace('.csv', '_conditional_asset_type.pdf')}", format='pdf')
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -769,3 +902,4 @@ if __name__ == "__main__":
     analyze_results(sys.argv[1])
     analyze_cdn_requests(sys.argv[1])
     analyze_cache_validation(sys.argv[1])
+    analyze_validation_and_0rtt(sys.argv[1])  # Add this line
