@@ -910,7 +910,7 @@ def analyze_network_conditions(base_directory=results_dir, date_pattern=None):
         # Extract date patterns
         date_patterns = set()
         for file in csv_files:
-            match = re.search(r'cache_perf_results_(\d+_\d+)_', file)
+            match = re.search(r'real_web_tests__(\d+_\d+)_', file)
             if match:
                 date_patterns.add(match.group(1))
         
