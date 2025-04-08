@@ -6,6 +6,7 @@ import sys
 import os
 import numpy as np
 import argparse
+import glob
 import matplotlib
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common import (golden_ratio, figwidth, color_pallete, kfmt,
