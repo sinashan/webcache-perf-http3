@@ -900,7 +900,7 @@ def analyze_validation_and_0rtt(csv_file):
 def analyze_network_conditions(base_directory=results_dir):
     """Analyze HTTP/3 vs HTTP/2 performance across different network conditions"""
     # Find all cache performance result files
-    csv_files = glob.glob(os.path.join(base_directory, "cache_perf_results_*.csv"))
+    csv_files = glob.glob(os.path.join(base_directory, "real_web_tests_*.csv"))
     if not csv_files:
         print("No performance result files found in the results directory.")
         return
@@ -913,7 +913,7 @@ def analyze_network_conditions(base_directory=results_dir):
     
     for file_path in csv_files:
         # Extract network condition name from filename
-        match = re.search(r'cache_perf_results_.*?_(.*?)\.csv$', file_path)
+        match = re.search(r'real_web_tests_.*?_(.*?)\.csv$', file_path)
         if match:
             network_name = match.group(1)
             try:
