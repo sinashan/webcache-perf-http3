@@ -894,12 +894,237 @@ def analyze_validation_and_0rtt(csv_file):
                 plt.tight_layout()
                 plt.savefig(f"{csv_file.replace('.csv', '_conditional_asset_type.pdf')}", format='pdf')
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python analyze_results.py <results_csv_file>")
-        sys.exit(1)
+def analyze_network_conditions(base_directory=results_dir, date_pattern=None):
+    """Analyze HTTP/3 vs HTTP/2 performance across different network conditions"""
+    # Find all result files with the same date pattern but different network conditions
+    if date_pattern is None:
+        # Look for the most recent date pattern
+        csv_files = glob.glob(os.path.join(base_directory, "cache_perf_results_*.csv"))
+        if not csv_files:
+            print("No result files found in the results directory.")
+            return
+            
+        # Extract date patterns
+        date_patterns = set()
+        for file in csv_files:
+            match = re.search(r'cache_perf_results_(\d+_\d+)_', file)
+            if match:
+                date_patterns.add(match.group(1))
+        
+        if not date_patterns:
+            print("No valid date patterns found in result files.")
+            return
+            
+        # Use the most recent date pattern
+        date_pattern = sorted(date_patterns)[-1]
+        print(f"Using most recent test date: {date_pattern}")
     
-    analyze_results(sys.argv[1])
-    analyze_cdn_requests(sys.argv[1])
-    analyze_cache_validation(sys.argv[1])
-    analyze_validation_and_0rtt(sys.argv[1])  # Add this line
+    # Find all files matching the date pattern
+    network_files = glob.glob(os.path.join(base_directory, f"cache_perf_results_{date_pattern}_*.csv"))
+    
+    if len(network_files) <= 1:
+        print(f"Not enough network condition files found for date {date_pattern}.")
+        return
+        
+    print(f"Found {len(network_files)} network condition files for analysis.")
+    
+    # Load all files into dataframes
+    network_data = {}
+    for file_path in network_files:
+        # Extract network condition name from filename
+        match = re.search(r'_(\w+(?:\s\w+)*)\.csv$', file_path)
+        if match:
+            network_name = match.group(1)
+            try:
+                df = pd.read_csv(file_path)
+                network_data[network_name] = df
+                print(f"Loaded {network_name} data: {len(df)} rows")
+            except Exception as e:
+                print(f"Error loading {file_path}: {e}")
+    
+    if not network_data:
+        print("No valid data files could be loaded.")
+        return
+    
+    # Combine dataframes with network condition column
+    combined_data = []
+    for network, df in network_data.items():
+        df_copy = df.copy()
+        df_copy['network_condition'] = network
+        combined_data.append(df_copy)
+    
+    combined_df = pd.concat(combined_data, ignore_index=True)
+    
+    # Convert string values to boolean if needed
+    for col in ['zero_rtt_used', 'from_disk_cache', 'tls_resumed']:
+        if col in combined_df.columns and combined_df[col].dtype == 'object':
+            combined_df[col] = combined_df[col].map({'true': True, 'false': False})
+    
+    # Create the comparison visualizations
+    
+    # 1. Protocol comparison across network conditions
+    plt.figure(figsize=(figwidth*1.4, figwidth / golden_ratio))
+    
+    # Calculate mean load times for each protocol and network condition
+    agg_data = combined_df.groupby(['network_condition', 'protocol'])['load_time_ms'].mean().reset_index()
+    
+    # Order network conditions from fast to very slow
+    network_order = ['fast', 'typical', 'slow', 'very slow']
+    agg_data['network_condition'] = pd.Categorical(agg_data['network_condition'], 
+                                                 categories=network_order, 
+                                                 ordered=True)
+    agg_data = agg_data.sort_values('network_condition')
+    
+    # Create the grouped bar chart
+    ax = sns.barplot(x='network_condition', y='load_time_ms', hue='protocol', data=agg_data, palette=color_pallete[:2])
+    
+    ax.set_title('HTTP/2 vs HTTP/3 Performance Across Network Conditions', fontsize=14)
+    ax.set_xlabel('Network Condition', fontsize=12)
+    ax.set_ylabel('Average Load Time (ms)', fontsize=12)
+    
+    if agg_data['load_time_ms'].max() > 1000:
+        ax.yaxis.set_major_formatter(kfmt)
+    
+    ax.legend(title='Protocol')
+    plt.grid(axis='y', linestyle='--', alpha=0.3)
+    plt.tight_layout()
+    
+    network_comp_file = os.path.join(base_directory, f"network_comparison_{date_pattern}.pdf")
+    plt.savefig(network_comp_file, format='pdf')
+    print(f"Saved network comparison chart to {network_comp_file}")
+    
+    # 2. HTTP/3 improvement percentage across network conditions
+    plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
+    
+    # Calculate improvement percentages
+    improvement_data = []
+    
+    for network in network_order:
+        if network not in network_data:
+            continue
+            
+        network_df = network_data[network]
+        
+        # Group by protocol and calculate mean load times
+        protocol_means = network_df.groupby('protocol')['load_time_ms'].mean()
+        
+        if 'h2' in protocol_means and 'h3' in protocol_means:
+            h2_time = protocol_means['h2']
+            h3_time = protocol_means['h3']
+            improvement = ((h2_time - h3_time) / h2_time) * 100
+            
+            improvement_data.append({
+                'network_condition': network,
+                'improvement_pct': improvement
+            })
+    
+    if improvement_data:
+        improvement_df = pd.DataFrame(improvement_data)
+        improvement_df['network_condition'] = pd.Categorical(
+            improvement_df['network_condition'],
+            categories=network_order,
+            ordered=True
+        )
+        improvement_df = improvement_df.sort_values('network_condition')
+        
+        ax = sns.barplot(x='network_condition', y='improvement_pct', data=improvement_df, color=color_pallete[0])
+        
+        ax.set_title('HTTP/3 Performance Improvement Over HTTP/2', fontsize=14)
+        ax.set_xlabel('Network Condition', fontsize=12)
+        ax.set_ylabel('Improvement (%)', fontsize=12)
+        
+        # Add a horizontal line at y=0
+        ax.axhline(y=0, color='gray', linestyle='--', alpha=0.7)
+        
+        plt.grid(axis='y', linestyle='--', alpha=0.3)
+        plt.tight_layout()
+        
+        improvement_file = os.path.join(base_directory, f"http3_improvement_by_network_{date_pattern}.pdf")
+        plt.savefig(improvement_file, format='pdf')
+        print(f"Saved HTTP/3 improvement chart to {improvement_file}")
+    
+    # 3. Connection time comparison across network conditions
+    plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
+    
+    conn_agg_data = combined_df.groupby(['network_condition', 'protocol'])['connection_time_ms'].mean().reset_index()
+    
+    conn_agg_data['network_condition'] = pd.Categorical(
+        conn_agg_data['network_condition'],
+        categories=network_order,
+        ordered=True
+    )
+    conn_agg_data = conn_agg_data.sort_values('network_condition')
+    
+    ax = sns.barplot(x='network_condition', y='connection_time_ms', hue='protocol', data=conn_agg_data, palette=color_pallete[:2])
+    
+    ax.set_title('Connection Time Comparison by Network Condition', fontsize=14)
+    ax.set_xlabel('Network Condition', fontsize=12)
+    ax.set_ylabel('Average Connection Time (ms)', fontsize=12)
+    
+    plt.grid(axis='y', linestyle='--', alpha=0.3)
+    plt.tight_layout()
+    
+    conn_file = os.path.join(base_directory, f"connection_time_by_network_{date_pattern}.pdf")
+    plt.savefig(conn_file, format='pdf')
+    print(f"Saved connection time comparison to {conn_file}")
+    
+    # 4. 0-RTT Success Rate across network conditions (if available)
+    if 'zero_rtt_used' in combined_df.columns:
+        h3_data = combined_df[(combined_df['protocol'] == 'h3')]
+        
+        if len(h3_data) > 0:
+            plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
+            
+            # Calculate 0-RTT success rate for each network
+            zero_rtt_by_network = h3_data.groupby('network_condition')['zero_rtt_used'].agg(
+                ['count', 'sum']
+            ).reset_index()
+            
+            # Calculate percentage
+            zero_rtt_by_network['zero_rtt_pct'] = (zero_rtt_by_network['sum'] / zero_rtt_by_network['count']) * 100
+            
+            # Sort by network order
+            zero_rtt_by_network['network_condition'] = pd.Categorical(
+                zero_rtt_by_network['network_condition'],
+                categories=network_order,
+                ordered=True
+            )
+            zero_rtt_by_network = zero_rtt_by_network.sort_values('network_condition')
+            
+            ax = sns.barplot(x='network_condition', y='zero_rtt_pct', data=zero_rtt_by_network, color=color_pallete[0])
+            
+            ax.set_title('HTTP/3 0-RTT Success Rate by Network Condition', fontsize=14)
+            ax.set_xlabel('Network Condition', fontsize=12)
+            ax.set_ylabel('0-RTT Success Rate (%)', fontsize=12)
+            
+            # Add sample size annotation
+            for i, row in enumerate(zero_rtt_by_network.itertuples()):
+                ax.text(i, 5, f"n={row.count}", ha='center')
+            
+            plt.grid(axis='y', linestyle='--', alpha=0.3)
+            plt.tight_layout()
+            
+            rtt_file = os.path.join(base_directory, f"zero_rtt_success_by_network_{date_pattern}.pdf")
+            plt.savefig(rtt_file, format='pdf')
+            print(f"Saved 0-RTT success rate chart to {rtt_file}")
+    
+    return combined_df
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Analyze HTTP/2 vs HTTP/3 performance results")
+    parser.add_argument("file", nargs="?", help="Input CSV results file")
+    parser.add_argument("--network-analysis", "-n", action="store_true", 
+                      help="Perform analysis across network conditions")
+    parser.add_argument("--date", "-d", help="Date pattern to use (format: YYYYMMDD_HHMMSS)")
+    
+    args = parser.parse_args()
+    
+    if args.network_analysis:
+        analyze_network_conditions(date_pattern=args.date)
+    elif args.file:
+        analyze_results(args.file)
+        analyze_cdn_requests(args.file)
+        analyze_cache_validation(args.file)
+        analyze_validation_and_0rtt(args.file)
+    else:
+        print("Please provide a CSV file to analyze or use --network-analysis")
