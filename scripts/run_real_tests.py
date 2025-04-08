@@ -27,7 +27,7 @@ MAX_RESOURCES_PER_CATEGORY = 3  # Maximum resources to select from each category
 NETWORK_CONDITIONS = [
     {"name": "fast", "latency": 5, "packet_loss": 0.0},  # Fast connection
     {"name": "typical", "latency": 25, "packet_loss": 0.01},  # Typical connection
-    {"name": "slow", "latency": 100, "packet_loss": 0.05}  # Challenging connection
+    {"name": "slow", "latency": 100, "packet_loss": 0.05},  # Challenging connection
     {"name": "very slow", "latency": 300, "packet_loss": 0.1}  # Very Challenging connection
 ]
 
