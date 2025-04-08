@@ -335,6 +335,14 @@ async def test_resource(resource, protocol, cache_state, iteration, session_stor
                 result["etag"] = headers.get("etag", "")
                 result["status_code"] = response.status
                 
+                # Track validation headers (usually only in warm cache state)
+                request_headers = await response.request.all_headers()
+                result["request_headers"] = str({k: v for k, v in request_headers.items() if k.lower() in 
+                                                ["if-none-match", "if-modified-since"]})
+                
+                # Track if this was a 304 Not Modified response
+                result["is_not_modified"] = response.status == 304
+                
                 # Check for QUIC-specific headers
                 quic_status = headers.get("quic-status", "")
                 result["quic_status"] = quic_status
@@ -529,16 +537,23 @@ async def test_resource(resource, protocol, cache_state, iteration, session_stor
 async def run_tests(selected_resources):
     """Run tests on selected resources"""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results_file = f"{results_dir}/real_web_tests_{timestamp}_{SELECTED_NETWORK['name']}.csv"
+    
+    # Create network-specific directory
+    network_dir = os.path.join(results_dir, SELECTED_NETWORK['name'].replace(" ", "_"))
+    os.makedirs(network_dir, exist_ok=True)
+    
+    # Place the results in the network-specific directory
+    results_file = f"{network_dir}/real_web_tests_{timestamp}_{SELECTED_NETWORK['name']}.csv"
     all_results = []
     
     # Create session storage directory
-    session_storage_path = os.path.join(results_dir, "session_states")
+    session_storage_path = os.path.join(network_dir, "session_states")
     os.makedirs(session_storage_path, exist_ok=True)
     
     print(f"Starting tests on {len(selected_resources)} resources")
     print(f"Will run {len(PROTOCOLS)} protocols × {len(CACHE_STATES)} cache states × {ITERATIONS} iterations")
     print(f"Network condition: {SELECTED_NETWORK['name']} ({SELECTED_NETWORK['latency']}ms latency, {SELECTED_NETWORK['packet_loss']*100}% packet loss)")
+    print(f"Results will be saved in: {network_dir}")
     
     # Group resources by domain for more efficient testing
     resources_by_domain = {}
@@ -547,6 +562,7 @@ async def run_tests(selected_resources):
         if domain not in resources_by_domain:
             resources_by_domain[domain] = []
         resources_by_domain[domain].append(resource)
+    
     
     # Process each domain
     for domain, domain_resources in resources_by_domain.items():

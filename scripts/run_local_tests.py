@@ -55,8 +55,20 @@ NETWORK_CONDITIONS = [
 # Choose one network condition for this test run
 SELECTED_NETWORK = NETWORK_CONDITIONS[1]  # Default to typical
 
+# Update at line ~50 (where RESULTS_FILE is defined)
+
+# Create network-specific directory
+network_dir = os.path.join(csv_dir, SELECTED_NETWORK['name'].replace(" ", "_"))
+os.makedirs(network_dir, exist_ok=True)
+
 # Results file
-RESULTS_FILE = f"{csv_dir}/cache_perf_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{SELECTED_NETWORK['name']}.csv"
+RESULTS_FILE = f"{network_dir}/cache_perf_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{SELECTED_NETWORK['name']}.csv"
+
+# Also update at end of file in the argument parsing section
+# Update results file name with network condition
+network_dir = os.path.join(csv_dir, SELECTED_NETWORK['name'].replace(" ", "_"))
+os.makedirs(network_dir, exist_ok=True)
+RESULTS_FILE = f"{network_dir}/cache_perf_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{SELECTED_NETWORK['name']}.csv"
 
 # Connection and resumption counters
 connection_info = {
