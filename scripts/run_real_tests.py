@@ -28,7 +28,7 @@ NETWORK_CONDITIONS = [
     {"name": "fast", "latency": 5, "packet_loss": 0.0},  # Fast connection
     {"name": "typical", "latency": 25, "packet_loss": 0.01},  # Typical connection
     {"name": "slow", "latency": 100, "packet_loss": 0.05},  # Challenging connection
-    {"name": "very slow", "latency": 300, "packet_loss": 0.1}  # Very Challenging connection
+    {"name": "very_slow", "latency": 300, "packet_loss": 0.1}  # Very Challenging connection
 ]
 
 # Choose one network condition for this test run
