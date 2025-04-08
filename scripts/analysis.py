@@ -552,6 +552,11 @@ def analyze_cache_validation(csv_file):
     """Analyze cache validation strategies and effectiveness"""
     df = pd.read_csv(csv_file)
     
+    # Check if we need to rename columns for compatibility
+    if 'resource_type' in df.columns and 'asset_type' not in df.columns:
+        df['asset_type'] = df['resource_type']
+        print("Renamed 'resource_type' column to 'asset_type' for analysis")
+    
     # Check if we have caching data
     if 'cache_control' not in df.columns or 'etag' not in df.columns:
         print("Missing cache validation headers in dataset")
@@ -622,28 +627,44 @@ def analyze_cache_validation(csv_file):
         # Only analyze warm cache hits as that's where we expect caching
         warm_cache = df[df['cache_state'] == 'warm']
         if len(warm_cache) > 0:
-            cache_by_type = warm_cache.groupby(['asset_type', 'protocol'])['from_disk_cache'].mean().reset_index()
-            cache_by_type['cache_hit_pct'] = cache_by_type['from_disk_cache'] * 100
+            # Determine which column to use (asset_type or resource_type)
+            group_cols = []
             
-            print("\nCache Hit Rate by Asset Type (Warm Cache):")
-            for protocol in df['protocol'].unique():
-                protocol_data = cache_by_type[cache_by_type['protocol'] == protocol]
-                if len(protocol_data) > 0:
-                    print(f"\n  {protocol.upper()}:")
-                    for _, row in protocol_data.iterrows():
-                        print(f"    {row['asset_type']}: {row['cache_hit_pct']:.1f}% cache hit rate")
+            if 'asset_type' in warm_cache.columns:
+                group_cols.append('asset_type')
+            elif 'resource_type' in warm_cache.columns:
+                group_cols.append('resource_type')
+            else:
+                print("Warning: Neither 'asset_type' nor 'resource_type' column found. Skipping type-based analysis.")
+                group_cols = []
             
-            # Plot cache hit rate by asset type and protocol
-            plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
-            ax = sns.barplot(x='asset_type', y='cache_hit_pct', hue='protocol', 
-                            data=cache_by_type, palette=color_pallete[:2])
-            plt.title('Cache Hit Rate by Asset Type (Warm Cache)')
-            plt.xlabel('Asset Type')
-            plt.ylabel('Cache Hit Rate (%)')
-            plt.xticks(rotation=30)
-            plt.grid(axis='y', linestyle='--', alpha=0.3)
-            plt.tight_layout()
-            plt.savefig(f"{csv_file.replace('.csv', '_cache_hit_rate.pdf')}", format='pdf')
+            if group_cols and 'protocol' in warm_cache.columns:
+                group_cols.append('protocol')
+                cache_by_type = warm_cache.groupby(group_cols)['from_disk_cache'].mean().reset_index()
+                cache_by_type['cache_hit_pct'] = cache_by_type['from_disk_cache'] * 100
+                
+                # Determine which column to use for display
+                type_col = 'asset_type' if 'asset_type' in cache_by_type.columns else 'resource_type'
+                
+                print("\nCache Hit Rate by Resource Type (Warm Cache):")
+                for protocol in df['protocol'].unique():
+                    protocol_data = cache_by_type[cache_by_type['protocol'] == protocol]
+                    if len(protocol_data) > 0:
+                        print(f"\n  {protocol.upper()}:")
+                        for _, row in protocol_data.iterrows():
+                            print(f"    {row[type_col]}: {row['cache_hit_pct']:.1f}% cache hit rate")
+                
+                # Plot cache hit rate by resource type and protocol
+                plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
+                ax = sns.barplot(x=type_col, y='cache_hit_pct', hue='protocol', 
+                                data=cache_by_type, palette=color_pallete[:2])
+                plt.title('Cache Hit Rate by Resource Type (Warm Cache)')
+                plt.xlabel('Resource Type')
+                plt.ylabel('Cache Hit Rate (%)')
+                plt.xticks(rotation=30)
+                plt.grid(axis='y', linestyle='--', alpha=0.3)
+                plt.tight_layout()
+                plt.savefig(f"{csv_file.replace('.csv', '_cache_hit_rate.pdf')}", format='pdf')
             
     # 4. Compare validation strategies with actual caching outcomes
     if 'from_disk_cache' in df.columns and has_etag.any():
@@ -697,6 +718,7 @@ def analyze_cache_validation(csv_file):
                 plt.grid(axis='y', linestyle='--', alpha=0.3)
                 plt.tight_layout()
                 plt.savefig(f"{csv_file.replace('.csv', '_validation_effectiveness.pdf')}", format='pdf')
+
 
     # 5. Compare CDN cache operation with validation headers
     if 'cdn' in df.columns and 'from_disk_cache' in df.columns:
