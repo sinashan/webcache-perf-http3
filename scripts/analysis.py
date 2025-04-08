@@ -901,45 +901,77 @@ def analyze_validation_and_0rtt(csv_file):
 
 def analyze_network_conditions(base_directory=results_dir):
     """Analyze HTTP/3 vs HTTP/2 performance across different network conditions"""
-    # Find all cache performance result files
-    csv_files = glob.glob(os.path.join(base_directory, "real_web_tests_*.csv"))
-    if not csv_files:
-        print("No performance result files found in the results directory.")
-        return
+    # Define standard network condition directories to search
+    network_directories = ['fast', 'typical', 'slow', 'very_slow']
     
-    print(f"Found {len(csv_files)} total performance files.")
-    
-    # Extract network condition name from each file
     network_data = {}
-    network_order = []  # To keep track of order for plotting
+    network_order = []
     
-    for file_path in csv_files:
-        # Extract network condition name from filename
-        match = re.search(r'real_web_tests_.*?_(.*?)\.csv$', file_path)
-        if match:
-            network_name = match.group(1)
+    # Look for CSV files in each network directory
+    for network_name in network_directories:
+        network_dir = os.path.join(base_directory, network_name)
+        
+        # Skip if directory doesn't exist
+        if not os.path.isdir(network_dir):
+            print(f"Directory for {network_name} not found: {network_dir}")
+            continue
+            
+        # Find the most recent CSV file in this directory
+        csv_files = glob.glob(os.path.join(network_dir, "*.csv"))
+        # Filter out stats files
+        csv_files = [f for f in csv_files if not ("_stats" in f or "_optimizations" in f)]
+        
+        if csv_files:
+            # Use the most recent file (sorted by modification time)
+            csv_files.sort(key=os.path.getmtime, reverse=True)
+            latest_file = csv_files[0]
+            
             try:
-                df = pd.read_csv(file_path)
-                if network_name not in network_data:
+                df = pd.read_csv(latest_file)
+                if 'protocol' in df.columns:  # Verify this is a valid data file
                     network_data[network_name] = df
                     network_order.append(network_name)
-                    print(f"Loaded {network_name} data: {len(df)} rows from {os.path.basename(file_path)}")
+                    print(f"Loaded {network_name} data: {len(df)} rows from {os.path.basename(latest_file)}")
                 else:
-                    print(f"Note: Multiple files for {network_name} condition found, using first one.")
+                    print(f"Skipping {latest_file} - missing required columns")
             except Exception as e:
-                print(f"Error loading {file_path}: {e}")
+                print(f"Error loading {latest_file}: {e}")
+    
+    # If no network directories found, fall back to searching in the base directory
+    if not network_data:
+        print("No network directories found. Searching in base directory...")
+        
+        # Look for files with network names in their filenames
+        all_csv_files = glob.glob(os.path.join(base_directory, "*.csv"))
+        
+        for network_name in network_directories:
+            matching_files = [f for f in all_csv_files if network_name in f.lower()]
+            # Filter out stats files
+            matching_files = [f for f in matching_files if not ("_stats" in f or "_optimizations" in f)]
+            
+            if matching_files:
+                # Use most recent file
+                matching_files.sort(key=os.path.getmtime, reverse=True)
+                latest_file = matching_files[0]
+                
+                try:
+                    df = pd.read_csv(latest_file)
+                    if 'protocol' in df.columns:
+                        network_data[network_name] = df
+                        if network_name not in network_order:
+                            network_order.append(network_name)
+                        print(f"Loaded {network_name} data: {len(df)} rows from {os.path.basename(latest_file)}")
+                except Exception as e:
+                    print(f"Error loading {latest_file}: {e}")
     
     if not network_data:
         print("No valid network condition files could be loaded.")
         return
     
-    # Standardize network order if we have standard names
-    standard_order = ['fast', 'typical', 'slow', 'very slow']
-    if all(net in standard_order for net in network_data.keys()):
-        network_order = [net for net in standard_order if net in network_data]
-        print(f"Using standard network ordering: {network_order}")
-    else:
-        print(f"Using discovered network ordering: {network_order}")
+    # Sort network order according to standard ordering
+    standard_order = ['fast', 'typical', 'slow', 'very_slow']
+    network_order = sorted(network_order, key=lambda x: standard_order.index(x) if x in standard_order else 999)
+    print(f"Using network ordering: {network_order}")
     
     # Combine dataframes with network condition column
     combined_data = []
@@ -960,6 +992,7 @@ def analyze_network_conditions(base_directory=results_dir):
     # Generate timestamp for output files
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
+    # The rest of the function remains the same...
     # Create the comparison visualizations
     
     # 1. Protocol comparison across network conditions
