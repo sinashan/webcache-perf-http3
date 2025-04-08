@@ -548,6 +548,196 @@ def analyze_cdn_requests(csv_file):
     
     return cdn_stats
 
+def analyze_cache_validation(csv_file):
+    """Analyze cache validation strategies and effectiveness"""
+    df = pd.read_csv(csv_file)
+    
+    # Check if we have caching data
+    if 'cache_control' not in df.columns or 'etag' not in df.columns:
+        print("Missing cache validation headers in dataset")
+        return
+    
+    print("\n=== Cache Validation Analysis ===")
+    
+    # 1. Analyze presence of validation headers
+    has_etag = ~df['etag'].isna() & (df['etag'] != '')
+    has_cache_control = ~df['cache_control'].isna() & (df['cache_control'] != '')
+    
+    print(f"Resources with ETag: {sum(has_etag)} ({sum(has_etag)/len(df)*100:.1f}%)")
+    print(f"Resources with Cache-Control: {sum(has_cache_control)} ({sum(has_cache_control)/len(df)*100:.1f}%)")
+    
+    # 2. Analyze Cache-Control directives
+    if has_cache_control.any():
+        # Extract common cache-control directives
+        df['no_cache'] = df['cache_control'].str.contains('no-cache', case=False, na=False)
+        df['no_store'] = df['cache_control'].str.contains('no-store', case=False, na=False)
+        df['private'] = df['cache_control'].str.contains('private', case=False, na=False)
+        df['public'] = df['cache_control'].str.contains('public', case=False, na=False)
+        df['max_age'] = df['cache_control'].str.extract(r'max-age=(\d+)', expand=False).astype(float)
+        
+        # Count occurrences
+        directives_count = {
+            'no-cache': sum(df['no_cache']),
+            'no-store': sum(df['no_store']),
+            'private': sum(df['private']),
+            'public': sum(df['public']),
+            'with max-age': df['max_age'].notna().sum()
+        }
+        
+        print("\nCache-Control Directives:")
+        for directive, count in directives_count.items():
+            if count > 0:
+                print(f"  {directive}: {count} ({count/len(df)*100:.1f}%)")
+        
+        # Analyze max-age values
+        if df['max_age'].notna().any():
+            max_ages = df['max_age'].dropna()
+            print(f"\nMax-age statistics:")
+            print(f"  Mean: {max_ages.mean():.1f} seconds ({max_ages.mean()/3600:.1f} hours)")
+            print(f"  Median: {max_ages.median():.1f} seconds ({max_ages.median()/3600:.1f} hours)")
+            print(f"  Min: {max_ages.min():.1f} seconds")
+            print(f"  Max: {max_ages.max():.1f} seconds ({max_ages.max()/86400:.1f} days)")
+            
+            # Plot max-age distribution
+            plt.figure(figsize=(figwidth, figwidth / golden_ratio))
+            
+            # Use log scale for better visualization
+            max_ages_for_plot = max_ages[max_ages > 0]  # Filter out zero values for log scale
+            if len(max_ages_for_plot) > 5:
+                plt.hist(max_ages_for_plot, bins=15, color=color_pallete[0], alpha=0.7)
+                plt.xscale('log')
+                plt.title('Distribution of max-age Values (Log Scale)')
+                plt.xlabel('max-age (seconds)')
+                plt.ylabel('Number of Resources')
+                plt.grid(axis='y', linestyle='--', alpha=0.3)
+                plt.tight_layout()
+                plt.savefig(f"{csv_file.replace('.csv', '_max_age_distribution.pdf')}", format='pdf')
+    
+    # 3. Analyze cache effectiveness by resource type
+    if 'from_disk_cache' in df.columns:
+        # Convert to boolean if it's string
+        if df['from_disk_cache'].dtype == 'object':
+            df['from_disk_cache'] = df['from_disk_cache'].map({'true': True, 'false': False})
+        
+        # Only analyze warm cache hits as that's where we expect caching
+        warm_cache = df[df['cache_state'] == 'warm']
+        if len(warm_cache) > 0:
+            cache_by_type = warm_cache.groupby(['asset_type', 'protocol'])['from_disk_cache'].mean().reset_index()
+            cache_by_type['cache_hit_pct'] = cache_by_type['from_disk_cache'] * 100
+            
+            print("\nCache Hit Rate by Asset Type (Warm Cache):")
+            for protocol in df['protocol'].unique():
+                protocol_data = cache_by_type[cache_by_type['protocol'] == protocol]
+                if len(protocol_data) > 0:
+                    print(f"\n  {protocol.upper()}:")
+                    for _, row in protocol_data.iterrows():
+                        print(f"    {row['asset_type']}: {row['cache_hit_pct']:.1f}% cache hit rate")
+            
+            # Plot cache hit rate by asset type and protocol
+            plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
+            ax = sns.barplot(x='asset_type', y='cache_hit_pct', hue='protocol', 
+                            data=cache_by_type, palette=color_pallete[:2])
+            plt.title('Cache Hit Rate by Asset Type (Warm Cache)')
+            plt.xlabel('Asset Type')
+            plt.ylabel('Cache Hit Rate (%)')
+            plt.xticks(rotation=30)
+            plt.grid(axis='y', linestyle='--', alpha=0.3)
+            plt.tight_layout()
+            plt.savefig(f"{csv_file.replace('.csv', '_cache_hit_rate.pdf')}", format='pdf')
+            
+    # 4. Compare validation strategies with actual caching outcomes
+    if 'from_disk_cache' in df.columns and has_etag.any():
+        # Create validation strategy categories
+        conditions = [
+            (has_etag & has_cache_control),
+            (has_etag & ~has_cache_control),
+            (~has_etag & has_cache_control),
+            (~has_etag & ~has_cache_control)
+        ]
+        
+        strategies = [
+            'ETag + Cache-Control',
+            'ETag only',
+            'Cache-Control only',
+            'No validation'
+        ]
+        
+        df['validation_strategy'] = np.select(conditions, strategies, default='Unknown')
+        
+        # Only analyze warm cache where validation matters
+        warm_df = df[df['cache_state'] == 'warm']
+        if len(warm_df) > 0:
+            validation_effect = warm_df.groupby(['validation_strategy', 'protocol'])['from_disk_cache'].agg(
+                ['mean', 'count']
+            ).reset_index()
+            
+            # Calculate hit rate percentage
+            validation_effect['hit_rate_pct'] = validation_effect['mean'] * 100
+            
+            print("\nCache Hit Rate by Validation Strategy (Warm Cache):")
+            for protocol in df['protocol'].unique():
+                protocol_data = validation_effect[validation_effect['protocol'] == protocol]
+                if len(protocol_data) > 0:
+                    print(f"\n  {protocol.upper()}:")
+                    for _, row in protocol_data.iterrows():
+                        if row['count'] >= 5:  # Only show strategies with enough samples
+                            print(f"    {row['validation_strategy']}: {row['hit_rate_pct']:.1f}% hit rate (n={int(row['count'])})")
+            
+            # Plot validation strategy effectiveness
+            # Only include strategies with sufficient data points
+            valid_strategies = validation_effect[validation_effect['count'] >= 5]
+            if len(valid_strategies) > 1:  # Need at least 2 strategies to compare
+                plt.figure(figsize=(figwidth*1.2, figwidth / golden_ratio))
+                ax = sns.barplot(x='validation_strategy', y='hit_rate_pct', hue='protocol', 
+                                data=valid_strategies, palette=color_pallete[:2])
+                plt.title('Cache Hit Rate by Validation Strategy (Warm Cache)')
+                plt.xlabel('Validation Strategy')
+                plt.ylabel('Cache Hit Rate (%)')
+                plt.xticks(rotation=30)
+                plt.grid(axis='y', linestyle='--', alpha=0.3)
+                plt.tight_layout()
+                plt.savefig(f"{csv_file.replace('.csv', '_validation_effectiveness.pdf')}", format='pdf')
+
+    # 5. Compare CDN cache operation with validation headers
+    if 'cdn' in df.columns and 'from_disk_cache' in df.columns:
+        # Group data by CDN and validation presence
+        cdn_etag = df.groupby(['cdn', has_etag, 'protocol'])['from_disk_cache'].mean().reset_index()
+        cdn_etag.columns = ['cdn', 'has_etag', 'protocol', 'cache_hit_rate']
+        cdn_etag['cache_hit_pct'] = cdn_etag['cache_hit_rate'] * 100
+        
+        # Only consider CDNs with enough data points
+        cdn_counts = df.groupby('cdn').size()
+        major_cdns = cdn_counts[cdn_counts >= 10].index
+        
+        if len(major_cdns) > 0:
+            cdn_etag_filtered = cdn_etag[cdn_etag['cdn'].isin(major_cdns)]
+            
+            print("\nCDN Cache Hit Rate by ETag Usage:")
+            for cdn in major_cdns:
+                cdn_data = cdn_etag_filtered[cdn_etag_filtered['cdn'] == cdn]
+                if len(cdn_data) > 0:
+                    print(f"\n  {cdn}:")
+                    for _, row in cdn_data.iterrows():
+                        etag_status = "With ETag" if row['has_etag'] else "Without ETag"
+                        print(f"    {row['protocol']} {etag_status}: {row['cache_hit_pct']:.1f}% hit rate")
+            
+            # Plot CDN validation effectiveness
+            plt.figure(figsize=(figwidth*1.4, figwidth / golden_ratio))
+            
+            # Convert boolean to string for better labels
+            cdn_etag_filtered['ETag Present'] = cdn_etag_filtered['has_etag'].map({True: 'Yes', False: 'No'})
+            
+            ax = sns.barplot(x='cdn', y='cache_hit_pct', hue='ETag Present', 
+                            data=cdn_etag_filtered[cdn_etag_filtered['protocol'] == 'h3'],
+                            palette=[color_pallete[0], color_pallete[2]])
+            plt.title('HTTP/3 Cache Hit Rate by CDN and ETag Usage')
+            plt.xlabel('CDN Provider')
+            plt.ylabel('Cache Hit Rate (%)')
+            plt.xticks(rotation=30)
+            plt.grid(axis='y', linestyle='--', alpha=0.3)
+            plt.tight_layout()
+            plt.savefig(f"{csv_file.replace('.csv', '_cdn_validation_effectiveness.pdf')}", format='pdf')
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -555,5 +745,5 @@ if __name__ == "__main__":
         sys.exit(1)
     
     analyze_results(sys.argv[1])
-
     analyze_cdn_requests(sys.argv[1])
+    analyze_cache_validation(sys.argv[1])
