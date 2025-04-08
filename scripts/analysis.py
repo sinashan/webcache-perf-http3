@@ -901,7 +901,7 @@ def analyze_network_conditions(base_directory=results_dir, date_pattern=None):
     # Find all result files with the same date pattern but different network conditions
     if date_pattern is None:
         # Look for the most recent date pattern
-        csv_files = glob.glob(os.path.join(base_directory, "cache_perf_results_*.csv"))
+        csv_files = glob.glob(os.path.join(base_directory, "real_web_tests_*.csv"))
         if not csv_files:
             print("No result files found in the results directory.")
             return
