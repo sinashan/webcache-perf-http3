@@ -1,0 +1,158 @@
+{
+  "metadata": {
+    "url": "https://1.1.1.1",
+    "navigation_success": true,
+    "performance": {
+      "loadTime": 470,
+      "domContentLoaded": 470,
+      "firstPaint": 464
+    },
+    "total_resources": 9,
+    "timestamp": "2025-04-08 22:09:17"
+  },
+  "images": [
+    {
+      "url": "https://one.one.one.one/media/warp-desktop.png",
+      "resource_type": "image",
+      "method": "GET",
+      "size": 124178,
+      "status": 200,
+      "content_type": "image/png",
+      "cache_control": "public, max-age=0, must-revalidate",
+      "cdn": "Cloudflare",
+      "supports_http3": true,
+      "etag": "\"f9d665a26438ecf5f63b4e368385a0c7\"",
+      "last_modified": "",
+      "expires": "",
+      "age": "",
+      "server": "cloudflare"
+    },
+    {
+      "url": "https://one.one.one.one/media/warp-desktop-3.png",
+      "resource_type": "image",
+      "method": "GET",
+      "size": 93321,
+      "status": 200,
+      "content_type": "image/png",
+      "cache_control": "public, max-age=0, must-revalidate",
+      "cdn": "Cloudflare",
+      "supports_http3": true,
+      "etag": "\"4b6059c52ac3dad00437e44fadb45989\"",
+      "last_modified": "",
+      "expires": "",
+      "age": "",
+      "server": "cloudflare"
+    },
+    {
+      "url": "https://one.one.one.one/media/warp-plus.png",
+      "resource_type": "image",
+      "method": "GET",
+      "size": 78099,
+      "status": 200,
+      "content_type": "image/png",
+      "cache_control": "public, max-age=0, must-revalidate",
+      "cdn": "Cloudflare",
+      "supports_http3": true,
+      "etag": "\"ef882c088608d5a74c5469f59a3b4fa3\"",
+      "last_modified": "",
+      "expires": "",
+      "age": "",
+      "server": "cloudflare"
+    },
+    {
+      "url": "https://one.one.one.one/media/warp-desktop-2.png",
+      "resource_type": "image",
+      "method": "GET",
+      "size": 225857,
+      "status": 200,
+      "content_type": "image/png",
+      "cache_control": "public, max-age=0, must-revalidate",
+      "cdn": "Cloudflare",
+      "supports_http3": true,
+      "etag": "\"7f34884f4aa7d9998d6063246e35d288\"",
+      "last_modified": "",
+      "expires": "",
+      "age": "",
+      "server": "cloudflare"
+    },
+    {
+      "url": "https://one.one.one.one/media/lighthouse.svg",
+      "resource_type": "image",
+      "method": "GET",
+      "size": 6972,
+      "status": 200,
+      "content_type": "image/svg+xml",
+      "cache_control": "public, max-age=0, must-revalidate",
+      "cdn": "Cloudflare",
+      "supports_http3": true,
+      "etag": "W/\"54abbadd6e90b7ccec907f77ec3ba1e6\"",
+      "last_modified": "",
+      "expires": "",
+      "age": "",
+      "server": "cloudflare"
+    }
+  ],
+  "scripts": [
+    {
+      "url": "https://one.one.one.one/site-aa686e0e9e4d122550f8.js",
+      "resource_type": "script",
+      "method": "GET",
+      "size": 94855,
+      "status": 200,
+      "content_type": "application/javascript",
+      "cache_control": "public, max-age=0, must-revalidate",
+      "cdn": "Cloudflare",
+      "supports_http3": true,
+      "etag": "W/\"e3a8d07ebafd09748fe71b255049bde2\"",
+      "last_modified": "",
+      "expires": "",
+      "age": "",
+      "server": "cloudflare"
+    }
+  ],
+  "stylesheets": [
+    {
+      "url": "https://one.one.one.one/site-aa686e0e9e4d122550f8.css",
+      "resource_type": "stylesheet",
+      "method": "GET",
+      "size": 28736,
+      "status": 200,
+      "content_type": "text/css; charset=utf-8",
+      "cache_control": "public, max-age=0, must-revalidate",
+      "cdn": "Cloudflare",
+      "supports_http3": true,
+      "etag": "W/\"b6955a0ae83738cfc2bf6e6b368feb3f\"",
+      "last_modified": "",
+      "expires": "",
+      "age": "",
+      "server": "cloudflare"
+    }
+  ],
+  "fonts": [],
+  "api_responses": [],
+  "html": [
+    {
+      "url": "https://1.1.1.1/",
+      "resource_type": "document",
+      "method": "GET",
+      "size": 0
+    },
+    {
+      "url": "https://one.one.one.one/",
+      "resource_type": "document",
+      "method": "GET",
+      "size": 56614,
+      "status": 200,
+      "content_type": "text/html; charset=utf-8",
+      "cache_control": "public, max-age=0, must-revalidate",
+      "cdn": "Cloudflare",
+      "supports_http3": true,
+      "etag": "W/\"e3b0b55949321bee09e380eb849f90fd\"",
+      "last_modified": "",
+      "expires": "",
+      "age": "",
+      "server": "cloudflare"
+    }
+  ],
+  "other": []
+}

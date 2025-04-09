@@ -14,21 +14,20 @@ from urllib.parse import urlparse
 
 # Directory settings
 results_dir = "results/"
-outputs_dir = "outputs/"
+outputs_dir = "../outputs/"
 os.makedirs(results_dir, exist_ok=True)
 
 # Test configurations
 PROTOCOLS = ["h2", "h3"]
 CACHE_STATES = ["cold", "warm"]
-ITERATIONS = 1  # Number of iterations per resource
-MAX_RESOURCES_PER_CATEGORY = 3  # Maximum resources to select from each category
+ITERATIONS = 50  # Number of iterations per resource
+MAX_RESOURCES_PER_CATEGORY = 30  # Maximum resources to select from each category
 
 # Network conditions to test
 NETWORK_CONDITIONS = [
     {"name": "fast", "latency": 5, "packet_loss": 0.0},  # Fast connection
     {"name": "typical", "latency": 25, "packet_loss": 0.01},  # Typical connection
     {"name": "slow", "latency": 100, "packet_loss": 0.05},  # Challenging connection
-    {"name": "very_slow", "latency": 300, "packet_loss": 0.1}  # Very Challenging connection
 ]
 
 # Choose one network condition for this test run
@@ -668,7 +667,7 @@ async def run_tests(selected_resources):
 
 async def main():
     parser = argparse.ArgumentParser(description="Test HTTP/2 vs HTTP/3 performance with real-world resources")
-    parser.add_argument("--network", choices=["fast", "typical", "slow", "very slow"], default="typical",
+    parser.add_argument("--network", choices=["fast", "typical", "slow"], default="typical",
                       help="Network condition to simulate (default: typical)")
     parser.add_argument("--iterations", type=int, default=50,
                       help="Number of test iterations per resource (default: 50)")

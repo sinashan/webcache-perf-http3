@@ -1,0 +1,38 @@
+[0;32m[2025-04-08 22:08:24] Starting HTTP/3 vs HTTP/2 Performance Test Suite (Automated)[0m
+[0;32m[2025-04-08 22:08:24] ==========================================================[0m
+[0;32m[2025-04-08 22:08:24] Checking dependencies...[0m
+[0;32m[2025-04-08 22:08:24] All dependencies satisfied.[0m
+[0;32m[2025-04-08 22:08:24] Starting discovery on HTTP/3 websites...[0m
+[0;34m[2025-04-08 22:08:24] This will discover resources from websites and identify HTTP/3 support.[0m
+[0;33m[2025-04-08 22:08:24] Press Ctrl+C at any time to stop the discovery process.[0m
+[0;32m[2025-04-08 22:13:05] Discovery completed successfully![0m
+[0;32m[2025-04-08 22:13:05] Starting real-world tests with fast network conditions...[0m
+[0;34m[2025-04-08 22:13:05] Running 50 iterations on up to 15 resources[0m
+[0;32m[2025-04-09 00:00:28] Tests for fast network conditions completed successfully![0m
+[0;32m[2025-04-09 00:00:28] Starting real-world tests with typical network conditions...[0m
+[0;34m[2025-04-09 00:00:28] Running 50 iterations on up to 15 resources[0m
+[0;32m[2025-04-09 01:46:33] Tests for typical network conditions completed successfully![0m
+[0;32m[2025-04-09 01:46:33] Starting real-world tests with slow network conditions...[0m
+[0;34m[2025-04-09 01:46:33] Running 50 iterations on up to 15 resources[0m
+[0;32m[2025-04-09 03:37:40] Tests for slow network conditions completed successfully![0m
+[0;32m[2025-04-09 03:37:40] Starting real-world tests with very_slow network conditions...[0m
+[0;34m[2025-04-09 03:37:40] Running 50 iterations on up to 15 resources[0m
+[0;31m[2025-04-09 03:37:40] Tests for very_slow network conditions failed. Check the logs for details.[0m
+[0;32m[2025-04-09 03:37:40] Analyzing results across all network conditions...[0m
+[0;32m[2025-04-09 03:37:57] Cross-network analysis completed successfully![0m
+[0;32m[2025-04-09 03:37:57] Analyzing individual network condition results...[0m
+[0;34m[2025-04-09 03:37:57] Processing fast results...[0m
+[0;34m[2025-04-09 03:37:57] Analyzing: real_web_tests_20250408_221311_fast.csv[0m
+[0;32m[2025-04-09 03:38:01] Analysis for fast condition completed successfully![0m
+[0;34m[2025-04-09 03:38:01] Processing typical results...[0m
+[0;34m[2025-04-09 03:38:01] Analyzing: real_web_tests_20250409_000028_typical.csv[0m
+[0;32m[2025-04-09 03:38:04] Analysis for typical condition completed successfully![0m
+[0;34m[2025-04-09 03:38:04] Processing slow results...[0m
+[0;34m[2025-04-09 03:38:04] Analyzing: real_web_tests_20250409_014634_slow.csv[0m
+[0;32m[2025-04-09 03:38:08] Analysis for slow condition completed successfully![0m
+[0;33m[2025-04-09 03:38:08] Directory for very_slow condition not found: /home/ubuntu/measure/results/very_slow[0m
+[0;32m[2025-04-09 03:38:08] All analysis tasks completed![0m
+[0;32m[2025-04-09 03:38:08] Analysis results saved in the results directory[0m
+[0;32m[2025-04-09 03:38:08] Automated test suite execution completed![0m
+[0;32m[2025-04-09 03:38:08] Check results in the /home/ubuntu/measure/results directory[0m
+[0;34m[2025-04-09 03:38:08] Logs saved to /home/ubuntu/measure/logs/test_suite_20250408_220824.log[0m

@@ -32,6 +32,10 @@ HTTP3_WEBSITES = [
     "https://www.facebook.com",
     "https://www.instagram.com",
     "https://www.whatsapp.com",
+
+    # Microsoft properties
+    "https://www.bing.com",
+    "https://www.linkedin.com",
     
 
     # E-commerce
